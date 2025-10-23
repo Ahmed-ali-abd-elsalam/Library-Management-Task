@@ -1,24 +1,17 @@
 ﻿using Application.DTOs;
-using Domain.Entities;
-using Microsoft.AspNetCore.Identity;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Application.Results;
 
 namespace Application.IService
 {
     public interface IAuthService
     {
-        Task<LoginResponseDto> refresh(string userEmail, string refreshToken,string source,CancellationToken cancellationToken);
-        Task<LoginResponseDto> Login(LoginMemberDto loginMemberDto,string source,CancellationToken cancellationToken);
-        Task<MemberResponseDto> Signup(RegisterMemberDto registerMemberDto);
-        public Task<bool> logOutAsync(string email, string source,CancellationToken cancellationToken);
-        public Task<bool> resetPassword(ForgotPasswrodDTO forgetPasswrodDTO,string TokenId,string Email);
-        public Task<bool> confirmEmail(string Email,string Token);
-        public Task<bool> resetPasswordInitializeAsync(string email);
-        public Task SendEmail(string Email);
+        Task<Result<LoginResponseDto>> refresh(string userEmail, string refreshToken, string source, CancellationToken cancellationToken);
+        Task<Result<LoginResponseDto>> Login(LoginMemberDto loginMemberDto, string source, CancellationToken cancellationToken);
+        Task<Result<MemberResponseDto>> Signup(RegisterMemberDto registerMemberDto);
+        public Task<Result> logOutAsync(string email, string source, CancellationToken cancellationToken);
+        public Task<Result> resetPassword(ForgotPasswrodDTO forgetPasswrodDTO, string TokenId, string Email);
+        public Task<Result> confirmEmail(string Email, string Token);
+        public Task<Result> resetPasswordInitializeAsync(string email);
 
     }
 }

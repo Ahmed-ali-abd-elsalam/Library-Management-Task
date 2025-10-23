@@ -19,6 +19,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 string DBpassword = builder.Configuration["DBPassword"];
 string tokenSecret = builder.Configuration["tokensecret"];
+string smtpPassword = builder.Configuration["smtpPassword"];
+
 
 Log.Logger = new LoggerConfiguration().ReadFrom.Configuration(builder.Configuration)
     .CreateLogger();
@@ -76,13 +78,13 @@ builder.Services.AddAuthentication(options =>
 //if (builder.Environment.IsProduction())
 //{
 builder.Services.AddFluentEmail(builder.Configuration["Email:SenderEmail"], builder.Configuration["Email:Sender"])
-       .AddSmtpSender(builder.Configuration["Email:Host"], builder.Configuration.GetValue<int>("Email:Port"), builder.Configuration["Email:SenderEmail"], builder.Configuration["Email:Password"]);
+       .AddSmtpSender(builder.Configuration["Email:Host"], builder.Configuration.GetValue<int>("Email:Port"), builder.Configuration["Email:SenderEmail"], smtpPassword);
 
 //}
 //else
 //{
 //builder.Services.AddFluentEmail(builder.Configuration["Email:SenderEmail"], builder.Configuration["Email:Sender"])
-        //.AddSmtpSender(builder.Configuration["Email:Host"], builder.Configuration.GetValue<int>("Email:Port"));
+//.AddSmtpSender(builder.Configuration["Email:Host"], builder.Configuration.GetValue<int>("Email:Port"));
 //}
 builder.Services.AddScoped<IBookRepository,BookRepository>();
 builder.Services.AddScoped<IBookService,BookService>();

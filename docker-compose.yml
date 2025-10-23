@@ -1,0 +1,19 @@
+version: '3.9'
+
+services:
+  # Papercut email testing service
+  papercut:
+    image: jijiechen/papercut:latest
+    container_name: papercut
+    ports:
+      - "25:25"       # SMTP port
+      - "37408:37408" # Web UI
+    restart: unless-stopped
+
+  # Redis cache service
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped

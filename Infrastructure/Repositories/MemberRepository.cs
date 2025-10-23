@@ -13,7 +13,6 @@ namespace Infrastructure.Repositories
 {
     public class MemberRepository:IMemberRepository
     {
-        //TODO Implement Correctly after you apply Identity framework for Security
         private readonly LibraryDbContext _context;
 
         public MemberRepository(LibraryDbContext context)

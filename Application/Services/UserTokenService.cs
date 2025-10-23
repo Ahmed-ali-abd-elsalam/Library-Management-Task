@@ -15,7 +15,7 @@ namespace Application.Services
 {
     public class UserTokenService :IUserTokenService
     {
-        private readonly ITokenRepository _repository;
+        //private readonly ITokenRepository _repository;
 
         private readonly IConfiguration configuration;
 
@@ -91,6 +91,7 @@ namespace Application.Services
                     signingCredentials: creds
                 );
             }
+            //string Token = new JwtSecurityTokenHandler().ReadJwtToken();
             string Token = new JwtSecurityTokenHandler().WriteToken(tokenDescriptor);
             //if(mode == "Response Token")
             //{
@@ -106,6 +107,11 @@ namespace Application.Services
             //    await _repository.createUserTokenAsync(userToken);
             //}
             return Token;
+        }
+        public bool checkTokenValid(string token)
+        {
+            var endDate = new JwtSecurityTokenHandler().ReadJwtToken(token).ValidTo;
+            return DateTime.UtcNow < endDate;
         }
 
     }

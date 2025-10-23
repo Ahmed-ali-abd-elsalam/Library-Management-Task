@@ -1,33 +1,19 @@
 ﻿using Application.DTOs;
-using Application.IRepository;
 using Application.IService;
 using Application.Mappers;
+using Application.Results;
 using Domain.Entities;
 using FluentEmail.Core;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.Configuration;
-using Microsoft.IdentityModel.Tokens;
-using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.IdentityModel.Tokens.Jwt;
-using System.Linq;
-using System.Security.Claims;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Application.Services
 {
-     enum tokenModes
+    enum tokenModes
     {
         EmailValidation,
         PasswordReset
-    } 
+    }
     public class AuthService : IAuthService
     {
         private readonly UserManager<Member> _userManager;
@@ -55,21 +41,26 @@ namespace Application.Services
             this.memberService = memberService;
         }
 
-        public async Task<LoginResponseDto> Login(LoginMemberDto loginMemberDto, string source, CancellationToken cancellationToken)
+        public async Task<Result<LoginResponseDto>> Login(LoginMemberDto loginMemberDto, string source, CancellationToken cancellationToken)
         {
             Member user = await _userManager.FindByEmailAsync(loginMemberDto.Email);
-            if (user == null) return null;
+            if (user == null) return Errors.DoesntExist;
             bool result = await _userManager.CheckPasswordAsync(user, loginMemberDto.Password);
-            if (result == false || !user.EmailConfirmed) return null;
+            if (result == false) return Errors.WrongPassword;
+            if (!user.EmailConfirmed) return Errors.EmailNotConfirmed;
             var userRoles = await _userManager.GetRolesAsync(user);
             string key = $"{loginMemberDto.Email}-{source}";
-            string ResponseToken =  await cache.GetStringAsync(key, cancellationToken);
-            if (ResponseToken is not null){
+            string ResponseToken = await cache.GetStringAsync(key, cancellationToken);
+            string Refresh_token = await tokenService.createTokenAsync(user, userRoles, "Refresh Token", source);
+            user.RefreshToken = Refresh_token;
+            await memberService.editMember(loginMemberDto.Email, user);
+            if (ResponseToken is not null)
+            {
                 return new LoginResponseDto
                 {
                     Email = loginMemberDto.Email,
                     Response_Token = ResponseToken,
-                    Refresh_token = await tokenService.createTokenAsync(user, userRoles, "Refresh Token", source)
+                    Refresh_token = Refresh_token
                 };
             }
             ResponseToken = await tokenService.createTokenAsync(user, userRoles, "Response Token", source);
@@ -79,28 +70,32 @@ namespace Application.Services
                 new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromMinutes(30)),
                 cancellationToken);
             return new LoginResponseDto
-            {
-                Email = loginMemberDto.Email,
-                Response_Token = ResponseToken,
-                Refresh_token = await tokenService.createTokenAsync(user, userRoles, "Refresh Token", source)
-            };
+                {
+                    Email = loginMemberDto.Email,
+                    Response_Token = ResponseToken,
+                    Refresh_token = Refresh_token
+                };
 
-            }
-        public async Task<LoginResponseDto> refresh(string userEmail,string RefreshToken,string source,CancellationToken cancellationToken)
+        }
+        public async Task<Result<LoginResponseDto>> refresh(string userEmail, string RefreshToken, string source, CancellationToken cancellationToken)
         {
             Member user = await _userManager.FindByEmailAsync(userEmail);
-            if (user == null) return null;
+            if (user == null) return Errors.DoesntExist;
+            if (user.RefreshToken != RefreshToken || !tokenService.checkTokenValid(user.RefreshToken))
+            {
+                return Errors.RefreshToken;
+            }
             var userRoles = await _userManager.GetRolesAsync(user);
             string key = $"{userEmail}-{source}";
             string ResponseToken = await cache.GetStringAsync(key, cancellationToken);
             if (ResponseToken is not null)
             {
                 return new LoginResponseDto
-                {
-                    Email = userEmail,
-                    Response_Token = ResponseToken,
-                    Refresh_token = RefreshToken
-                };
+{
+    Email = userEmail,
+    Response_Token = ResponseToken,
+    Refresh_token = RefreshToken
+};
             }
             ResponseToken = await tokenService.createTokenAsync(user, userRoles, "Response Token", source);
             await cache.SetStringAsync(
@@ -108,7 +103,8 @@ namespace Application.Services
                 ResponseToken,
                 new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromMinutes(30)),
                 cancellationToken);
-            return new LoginResponseDto
+                return new LoginResponseDto
+
             {
                 Email = userEmail,
                 Response_Token = ResponseToken,
@@ -116,17 +112,17 @@ namespace Application.Services
             };
         }
 
-        public async Task<MemberResponseDto> Signup(RegisterMemberDto registerMemberDto)
+        public async Task<Result<MemberResponseDto>> Signup(RegisterMemberDto registerMemberDto)
         {
 
             Member user = await _userManager.FindByEmailAsync(registerMemberDto.Email);
-            if (user != null) return null;
+            if (user != null) return Errors.EmailTaken;
             Member member = registerMemberDto.RegisterDtoToMember();
             var result = await _userManager.CreateAsync(member, registerMemberDto.Password);
             if (result.Succeeded)
             {
                 await _userManager.AddToRoleAsync(member, "Member");
-                ConfirmationToken confirmationToken = await ConfirmationTokenService.generateTokenAsync(member.Email,tokenModes.EmailValidation.ToString());                
+                ConfirmationToken confirmationToken = await ConfirmationTokenService.generateTokenAsync(member.Email, tokenModes.EmailValidation.ToString());
                 string link = linkFactory.generateLink(tokenModes.EmailValidation.ToString(), member.Email, confirmationToken.id.ToString());
                 fluentEmail
                     .To(member.Email)
@@ -138,32 +134,32 @@ namespace Application.Services
             else
             {
                 Console.WriteLine(result.Errors);
-                return null;
+                return Errors.PasswordNotSecure;
             }
         }
-        public async Task<bool> confirmEmail(string Email, string TokenId)
+        public async Task<Result> confirmEmail(string Email, string TokenId)
         {
             Member? user = await _userManager.FindByEmailAsync(Email);
-            if (user is null) return false;
-            bool validateToken = await ConfirmationTokenService.ValidateTokenAsync(Guid.Parse(TokenId),tokenModes.EmailValidation.ToString(), Email);
-            if (!validateToken) return false;
+            if (user is null) return Errors.DoesntExist;
+            bool validateToken = await ConfirmationTokenService.ValidateTokenAsync(Guid.Parse(TokenId), tokenModes.EmailValidation.ToString(), Email);
+            if (!validateToken) return Errors.InvalidToken;
             user.EmailConfirmed = true;
-            return await memberService.editMember(Email,user);            
-           
+            return await memberService.editMember(Email, user)? Result.success():Errors.DoesntExist;
+
         }
-        public async Task<bool> logOutAsync(string email,string source,CancellationToken cancellationToken)
+        public async Task<Result> logOutAsync(string email, string source, CancellationToken cancellationToken)
         {
             Member user = await _userManager.FindByEmailAsync(email);
-            if (user == null) return false;
+            if (user == null) return Errors.DoesntExist;
             string key = $"{email}-{source}";
             await cache.RemoveAsync(key, cancellationToken);
-            return true;
+            return Result.success();
         }
 
-        public async Task<bool> resetPasswordInitializeAsync(string email)
+        public async Task<Result> resetPasswordInitializeAsync(string email)
         {
             Member user = await _userManager.FindByEmailAsync(email);
-            if (user == null) return false;
+            if (user == null) return Errors.DoesntExist;
             ConfirmationToken confirmationToken = await ConfirmationTokenService.generateTokenAsync(email, tokenModes.PasswordReset.ToString());
             string link = linkFactory.generateLink(tokenModes.PasswordReset.ToString(), email, confirmationToken.id.ToString());
             fluentEmail
@@ -171,37 +167,25 @@ namespace Application.Services
                 .Subject("Password Reset")
                 .Body($"To rest your password <a href=\"{link}\">click here</a>", isHtml: true)
                 .SendAsync();
-            return true;
+            return Result.success();
         }
 
 
-        public async Task<bool> resetPassword(ForgotPasswrodDTO forgotPasswrodDTO,string TokenId,string Email)
+        public async Task<Result> resetPassword(ForgotPasswrodDTO forgotPasswrodDTO, string TokenId, string Email)
         {
-            Member? user =await _userManager.FindByEmailAsync(Email);
-            if (user is null) return false;
-            bool validateToken = await ConfirmationTokenService.ValidateTokenAsync(Guid.Parse(TokenId), tokenModes.PasswordReset.ToString(),Email);
-            if (!validateToken) return false;
-            if (!forgotPasswrodDTO.NewPassword.Equals(forgotPasswrodDTO.ConfirmNewPassword)) return false;
+            Member? user = await _userManager.FindByEmailAsync(Email);
+            if (user is null) return Errors.DoesntExist;
+            bool validateToken = await ConfirmationTokenService.ValidateTokenAsync(Guid.Parse(TokenId), tokenModes.PasswordReset.ToString(), Email);
+            if (!validateToken) return Errors.InvalidToken;
+            if (!forgotPasswrodDTO.NewPassword.Equals(forgotPasswrodDTO.ConfirmNewPassword)) return Errors.WrongPassword;
             await _userManager.RemovePasswordAsync(user);
             var result = await _userManager.AddPasswordAsync(user, forgotPasswrodDTO.NewPassword);
             if (!result.Succeeded)
             {
                 Console.WriteLine(result.Errors.ToList());
-                return false;
+                return Errors.PasswordNotSecure;
             }
-            return true;
+            return Result.success();
         }
-
-        public async Task SendEmail(string Email)
-        {
-            string link = "https://localhost:7205/api/auth";
-            await fluentEmail
-                .To(Email)
-                .Subject("Email Confirmation")
-                    .Body($"To Validate Email <a href=\"{link}\">click here</a>",isHtml:true)
-                .SendAsync();
-           
-        }
-
     }
 }

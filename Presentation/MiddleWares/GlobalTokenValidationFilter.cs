@@ -26,6 +26,8 @@ namespace Presentation.MiddleWares
 
             var httpContext = context.HttpContext;
             var user = httpContext.User;
+            if (httpContext.Request.Path.StartsWithSegments("/api/Auth/refresh"))
+                return;
 
             if (user?.Identity?.IsAuthenticated != true)
                 return; // Not authenticated, let [Authorize] handle it

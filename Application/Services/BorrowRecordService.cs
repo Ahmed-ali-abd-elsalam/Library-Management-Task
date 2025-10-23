@@ -2,6 +2,7 @@
 using Application.IRepository;
 using Application.IService;
 using Application.Mappers;
+using Application.Results;
 using Domain.Entities;
 using Domain.Exceptions;
 using System;
@@ -14,7 +15,6 @@ namespace Application.Services
 {
     public class BorrowRecordService : IBorrowRecordService
     {
-        //TODO import more than one interface and check for member and book in borrow record this breaks single responsibility?
         private readonly IBorrowRecordRepository _repository;
         private readonly IBookRepository _bookrepository;
         private readonly IMemberRepository _memberrepository;
@@ -26,12 +26,12 @@ namespace Application.Services
             _memberrepository = memberrepository;
         }
 
-        public async Task<BorrowRecordResponseDto> BorrowBook(int bookID,string userEmail)
+        public async Task<Result<BorrowRecordResponseDto>> BorrowBook(int bookID,string userEmail)
         {
             bool bookExists = await _bookrepository.CheckExistsAsync(bookID);
-            if (!bookExists) throw new BookDoesnotExist($"No Book Exists with this ID {bookID}");
+            if (!bookExists) return Result<BorrowRecordResponseDto>.Fail(Errors.DoesntExist);
             bool bookAvailable = await _bookrepository.CheckAvailableAsync(bookID);
-            if (!bookAvailable) return null;
+            if (!bookAvailable) return Result<BorrowRecordResponseDto>.Fail(Errors.notAvailable);
             Book book = await _bookrepository.GetBookAsync(bookID);
             book.IsAvailable = false;
             await _bookrepository.UpdateBookAsync(bookID, book);
@@ -44,7 +44,7 @@ namespace Application.Services
                 Book = book,
                 BorrowDate = DateOnly.FromDateTime(DateTime.UtcNow)
             });
-            return borrowRecord.BorrowRecordtoDto();
+            return Result<BorrowRecordResponseDto>.success(borrowRecord.BorrowRecordtoDto());
         }
         public async Task<BorrowRecordResponseDto> ReturnBook(int bookID,string userEmail)
         {

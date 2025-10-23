@@ -1,4 +1,5 @@
 ﻿using Application.IService;
+using Application.Results;
 using Domain.Exceptions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -22,22 +23,27 @@ namespace Presentation.Controllers
         [Route("/api/borrow/{BookId}")]
         public async Task<IActionResult> BorrowBook(int BookId)
         {
-            try
-            {
+            //try
+            //{
                 string Email = User.FindFirst(ClaimTypes.Email)?.Value;
-                var borrowRecord = await borrowRecordService.BorrowBook(BookId, Email);
-                if(borrowRecord == null)
-                {
-                    return BadRequest("Book Is not available to borrow");
-                }
-                return Ok(borrowRecord);
+                var borrowRecordResult = await borrowRecordService.BorrowBook(BookId, Email);
+            if (!borrowRecordResult.IsSuccess) {
+                if (borrowRecordResult.error == Errors.DoesntExist) return NotFound(borrowRecordResult);
+                if (borrowRecordResult.error == Errors.notAvailable) return BadRequest(borrowRecordResult);
             }
-            catch (BookDoesnotExist ex)
-            {
-                return BadRequest(ex.Message);
-            }
-            catch (Exception e)
-            { return BadRequest(e.Message); }
+            return Ok(borrowRecordResult);
+            //if(borrowRecord == null)
+                //{
+                //    return BadRequest("Book Is not available to borrow");
+                //}
+                //return Ok(borrowRecord);
+            //}
+            //catch (BookDoesnotExist ex)
+            //{
+            //    return BadRequest(ex.Message);
+            //}
+            //catch (Exception e)
+            //{ return BadRequest(e.Message); }
         }
 
         [HttpPost]

@@ -27,22 +27,9 @@ namespace Presentation.MiddleWares
                 {
                     Title = "Internal Server Error",
                     Detail = exception.Message,
-                    Status = (int)HttpStatusCode.InternalServerError,
+                    Status = (int)HttpStatusCode.InternalServerError
                 }
             });
-            
-            
-            
-            
-            //await httpContext.Response.WriteAsJsonAsync(
-            //    new ProblemDetails
-            //    {
-            //        Title = "Internal Server Error",
-            //        Detail = exception.Message,
-            //        Status = (int)HttpStatusCode.InternalServerError,
-            //        Type = exception.GetType().Name,
-            //    });
-            //return true;
         }
     }
 }
